@@ -53,17 +53,19 @@ the end of the basic program from BASICs data pointers in the zero page
 
 ## Notes
 
-This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git
+This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git</br>
 
-**git clone https://github.com/cc65/cc65.git**
+**git clone https://github.com/cc65/cc65.git**</br>
 
-Then add the following to your **.profile** or **.bashrc** file
+Then add the following to your **.profile** or **.bashrc** file</br>
 
-**CC65_HOME=/home/\<your user name\>/path/to/cc65**
+**CC65_HOME=/home/\<your user name\>/path/to/cc65**</br>
 
-source the new value
+source the new value</br>
 
-**source ~/.profile**  or .bashrc
+**source ~/.profile**  or .bashrc</br>
+
+
 
 This repo has a copy of the Propeller IDE and spin code as developed by Vince Briel
 This is so the update can easily be applied to the SuperBoard-3 machines. 
@@ -78,11 +80,9 @@ From the **Monitor**
 * **10**            <--- The new divisor value for the UART
 * .               <--- Back to ADDR mode
 
-
 The **old** section of the syn600 ROM was disasembled via da65 and annotated by me.
 This process was to re-assemble and check the resulting binary for any differences.
 I made a **few** changes here, but most of the entry points should be the same
-
 
 ## Other changes
 
@@ -93,7 +93,7 @@ also in the repo there is a stand-alone X-Modem dot c1p file which currently loa
 You can however easily rebuild the C1P file by modifying the build script from in the same directory and specify your own load address
 The build bash script will also generate the new ROM image for you
 
-##  Special thanks
+## Special thanks
 
 Vince Briel without whom the SuperBoard-3 would never exit
 Daryl Rictor & Ross Archer for the X-Modem 6502 code
