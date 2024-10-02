@@ -54,10 +54,15 @@ the end of the basic program from BASICs data pointers in the zero page
 ## Notes
 
 This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git
+
 **git clone https://github.com/cc65/cc65.git**
+
 Then add the following to your **.profile** or **.bashrc** file
+
 **CC65_HOME=/home/\<your user name\>/path/to/cc65**
+
 source the new value
+
 **source ~/.profile**  or .bashrc
 
 This repo has a copy of the Propeller IDE and spin code as developed by Vince Briel
