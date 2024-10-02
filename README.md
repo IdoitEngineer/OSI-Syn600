@@ -54,23 +54,6 @@ the end of the basic program from BASICs data pointers in the zero page
 
 ## Notes
 
-This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git</br>
-
-**git clone https://github.com/cc65/cc65.git**</br>
-
-Then add the following to your **.profile** or **.bashrc** file</br>
-
-**CC65_HOME=/home/\<your user name\>/path/to/cc65**</br>
-
-source the new value</br>
-
-**source ~/.profile**  or .bashrc</br>
-
-The next option is **B** for BASIC... It won't ask you anything as it starts at address $0000 and grabs 
-the end of the basic program from BASICs data pointers in the zero page
-
-## Notes
-
 This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git
 **git clone https://github.com/cc65/cc65.git**
 Then add the following to your **.profile** or **.bashrc** file
