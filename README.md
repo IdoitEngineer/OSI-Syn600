@@ -40,8 +40,17 @@ The loader has some special logic so that when it sees an incoming start/load ad
 other wise it will jump to the load address when the upload is finished
 
 ## Notes
+This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git</br>
+**git clone https://github.com/cc65/cc65.git**</br>
+Then add the following to your **.profile** or **.bashrc** file</br>
+**CC65_HOME=/home/\<your user name\>/path/to/cc65**</br>
+source the new value<br>
+**source ~/.profile**  or .bashrc</br>
+
+
 This repo has a copy of the Propeller IDE and spin code as developed by Vince Briel
 This is so the update can easily be applied to the super board 3 machines. 
+
 
 This new ROM should work in an original SuperBoard-2. The baud rates are clocked on those machines to be set at 300 Baud
 But you can "poke" a new multiplier into the UART at $F000, the divide by one Hex is $10 which should give you 4800 baud (I think)
