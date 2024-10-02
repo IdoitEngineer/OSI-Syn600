@@ -1,0 +1,9 @@
+al 00F800 .XM_RomStart
+al 001000 .__BSS_LOAD__
+al 001000 .__BSS_RUN__
+al 000000 .__BSS_SIZE__
+al 000000 .__ZP_FILEOFFS__
+al 000000 .__ZP_LAST__
+al 000100 .__ZP_SIZE__
+al 000000 .__ZP_START__
+al 00F986 .clrScreen

@@ -1,0 +1,933 @@
+ca65 V2.19 - Git 5c3ff714a
+Main file   : xmodem.s
+Current file: xmodem.s
+
+000000r 1               ; XMODEM/CRC Receiver for the 65C02
+000000r 1               ;
+000000r 1               ; By Daryl Rictor & Ross Archer  Aug 2002
+000000r 1               ;
+000000r 1               ; 21st century code for 20th century CPUs (tm?)
+000000r 1               ;
+000000r 1               ; A simple file transfer program to allow upload from a console device
+000000r 1               ; to the SBC utilizing the x-modem/CRC transfer protocol.  Requires just
+000000r 1               ; under 1k of either RAM or ROM, 132DBs of RAM for the receive buffer,
+000000r 1               ; and 8DBs of zero page RAM for variable storage.
+000000r 1               ;
+000000r 1               ;**************************************************************************
+000000r 1               ; This implementation of XMODEM/CRC does NOT conform strictly to the
+000000r 1               ; XMODEM protocol standard in that it (1) does not accurately time character
+000000r 1               ; reception or (2) fall back to the Checksum mode.
+000000r 1               
+000000r 1               ; (1) For timing, it uses a crude timing loop to provide approximate
+000000r 1               ; delays.  These have been calibrated against a 1MHz CPU clock.  I have
+000000r 1               ; found that CPU clock speed of up to 5MHz also work but may not in
+000000r 1               ; every case.  Windows HyperTerminal worked quite well at both speeds!
+000000r 1               ;
+000000r 1               ; (2) Most modern terminal programs support XMODEM/CRC which can detect a
+000000r 1               ; wider range of transmission errors so the fallback to the simple checksum
+000000r 1               ; calculation was not implemented to save space.
+000000r 1               ;**************************************************************************
+000000r 1               ;
+000000r 1               ; Files uploaded via XMODEM-CRC must be
+000000r 1               ; in .o64 format -- the first twoDBs are the load address in
+000000r 1               ; little-endian format:
+000000r 1               ;  FIRST BLOCK
+000000r 1               ;     offset(0) = lo(load start address),
+000000r 1               ;     offset(1) = hi(load start address)
+000000r 1               ;     offset(2) = dataDB (0)
+000000r 1               ;     offset(n) = dataDB (n-2)
+000000r 1               ;
+000000r 1               ; Subsequent blocks
+000000r 1               ;     offset(n) = dataDB (n)
+000000r 1               ;
+000000r 1               ; The TASS assembler and most Commodore 64-based tools generate this
+000000r 1               ; data format automatically and you can transfer their .obj/.o64 output
+000000r 1               ; file directly.
+000000r 1               ;
+000000r 1               ; The only time you need to do anything special is if you have
+000000r 1               ; a raw memory image file (say you want to load a data
+000000r 1               ; table into memory). For XMODEM you'll have to
+000000r 1               ; "insert" the start addressDBs to the front of the file.
+000000r 1               ; Otherwise, XMODEM would have no idea where to start putting
+000000r 1               ; the data.
+000000r 1               ;
+000000r 1               ;-------------------------- The Code ----------------------------
+000000r 1               ;
+000000r 1               ; zero page variables (adjust these to suit your needs)
+000000r 1               ;
+000000r 1               ;
+000000r 1               ;            .include        "osic1p.inc"
+000000r 1               ;            .include        "osiscreen.inc"
+000000r 1               
+000000r 1                           .setcpu         "6502"
+000000r 1                           .smart          on
+000000r 1                           .autoimport     on
+000000r 1                           .case           on
+000000r 1                           .debuginfo      off
+000000r 1                           .importzp       sp, sreg, regsave, regbank
+000000r 1                           .importzp       tmp1, tmp2, tmp3, tmp4, ptr1, ptr2, ptr3, ptr4
+000000r 1                           .FEATURE        STRING_ESCAPES
+000000r 1               
+000000r 1                           .segment  "STARTUP"
+000000r 1                           .segment        "CODE"
+000000r 1                           .proc           _main: near
+000000r 1               
+000000r 1               .export     XM_RomStart
+000000r 1               .export     clrScreen
+000000r 1               
+000000r 1               .ifdef      _StandAlone_
+000000r 1                           .org  $7000                             ; Start of program (adjust to your needs)
+007000  1               .endif
+007000  1               
+007000  1               ;
+007000  1               ; Variables, Some live in Display RAM to save space (EG The CRC Table)
+007000  1               ;
+007000  1               SR_Flag         =       $D093
+007000  1               lastblk         =       $D094           ; flag for last block
+007000  1               blkno           =       $D095           ; block number
+007000  1               errcnt          =       $D096           ; error counter 10 is the limit
+007000  1               bflag           =       $D097           ; block flag
+007000  1               
+007000  1               crc             =       $D098           ; CRC lo byte  (two byte variable)
+007000  1               crch            =       $D099           ; CRC hi byte
+007000  1               
+007000  1               
+007000  1               
+007000  1               eofp            =       $D0B5           ; end of file address pointer (2 bytes)
+007000  1               eofph           =       $D0B6           ;  "    "       "       "
+007000  1               debugChar       =       $D0B7
+007000  1               
+007000  1               retry           =       $D090           ; retry counter
+007000  1               retryh          =       $D091
+007000  1               
+007000  1               
+007000  1               
+007000  1               ;
+007000  1               ; Syn600 ROM std variables
+007000  1               zp_bas_tmpStr_1 =       $0065
+007000  1               zp_bas_tmpStr_2 =       $0068
+007000  1               zp_bas_tmpStr_3 =       $006B
+007000  1               zp_bas_tmpStr_4 =       $006E
+007000  1               zp_bas_snglVars =       $007B
+007000  1               zp_bas_arryVars =       $007D
+007000  1               zp_bas_emptyRAM =       $007F
+007000  1               zp_bas_memTop   =       $0085
+007000  1               zp_monLoadFlag  =       $00FB
+007000  1               zp_monLoadByte  =       $00FC
+007000  1               zp_monLoadAddrLo=       $00FE
+007000  1               zp_monLoadAddrHi=       $00FF
+007000  1               ;
+007000  1               displayRAM      =       $D000
+007000  1               ;
+007000  1               
+007000  1               ptr             =       zp_bas_tmpStr_2
+007000  1               ptrh            =       zp_bas_tmpStr_2+1
+007000  1               move_ptr        =       zp_bas_tmpStr_3
+007000  1               move_ptr_h      =       zp_bas_tmpStr_3+1
+007000  1               screen_ptr      =       zp_monLoadByte
+007000  1               ;
+007000  1               BAS_SaveAddr    =       $0000
+007000  1               ;
+007000  1               ;
+007000  1               ; Syn600 Rom entry points
+007000  1               pollKBD         =       $FD00
+007000  1               hex2bin         =       $FE93           ; hex2bin - Convert ascii hex to binary
+007000  1               rollAD          =       $FEDA           ; Roll hex digits into 2 bytes of memory target $FC, FD
+007000  1               fetchByte       =       $FEE9           ; Check Fetch flag; Read from TAPE else KEYB
+007000  1               
+007000  1               aciaInit        =       $FCA6           ; syn600 ROM Serial Acia Init Routine
+007000  1               aciaPut         =       $FCB1           ; syn600 ROM Serial Acia Send byte (A-Reg) Routine
+007000  1               aciaGetW        =       $FE80           ; syn600 ROM Serial Acia Recv Waits for data
+007000  1               
+007000  1               monStart        =       $FE00
+007000  1               disp4bytes      =       $FEAC           ; Display 4 bytes in $FF, FE, FD & FC
+007000  1               dispNybble      =       $FECA           ; Display Nybble - A-Reg Set Y-Reg to zero on entry (Its used as an index)
+007000  1               
+007000  1               ;
+007000  1               ; The ACIA adapter chip
+007000  1               aciaStatus      =       $F000          ; The 6850
+007000  1               aciaData        =       $F001          ; The 6850
+007000  1               
+007000  1               ;
+007000  1               ;
+007000  1               Rbuff           =       $D100           ; temp 132DB receive buffer (In video memory)
+007000  1               ;
+007000  1               ;
+007000  1               ;  tables and constants
+007000  1               ;
+007000  1               ;
+007000  1               ; The crclo & crchi labels are used to point to a lookup table to calculate
+007000  1               ; the CRC for the 128DB data blocks.  There are two implementations of these
+007000  1               ; tables.  One is to use the tables included (defined towards the end of this
+007000  1               ; file) and the other is to build them at run-time.  If building at run-time,
+007000  1               ; then these two labels will need to be un-commented and declared in RAM.
+007000  1               ;
+007000  1               crclo           =       $D200       ; Two 256DB tables for quick lookup  (In video memory)
+007000  1               crchi           =       $D300       ; (should be page-aligned for speed) (In video memory)
+007000  1               ;
+007000  1               ;
+007000  1               ;
+007000  1               ; XMODEM Control Character Constants
+007000  1               SOH     = $01  ; start block
+007000  1               EOT     = $04  ; end of text marker
+007000  1               ACK     = $06  ; good block acknowledged
+007000  1               NAK     = $15  ; bad block acknowledged
+007000  1               CAN     = $18  ; cancel (not standard, not supported)
+007000  1               CR      = $0d  ; carriage return
+007000  1               LF      = $0a  ; line feed
+007000  1               ESC     = $1b  ; ESC to exit
+007000  1               
+007000  1               ;
+007000  1               ;^^^^^^^^^^^^^^^^^^^^^^ Start of Program ^^^^^^^^^^^^^^^^^^^^^^
+007000  1               ;
+007000  1               ; Xmodem/CRC upload routine
+007000  1               ; By Daryl Rictor, July 31, 2002
+007000  1               ;
+007000  1               ; v0.3  tested good minus CRC
+007000  1               ; v0.4  CRC fixed!!! init to $0000 rather than $FFFF as stated
+007000  1               ; v0.5  added CRC tables vs. generation at run time
+007000  1               ; v 1.0 recode for use with SBC2
+007000  1               ; v 1.1 added block 1 masking (block 257 would be corrupted)
+007000  1               ;
+007000  1               
+007000  1               
+007000  1               ;
+007000  1               ;
+007000  1               XM_RomStart:
+007000  1  20 86 71                 jsr     clrScreen
+007003  1  20 C5 72                 jsr     XModemInit
+007006  1               GetOpt:
+007006  1               ;           inc     errcnt
+007006  1  20 3B 73                 jsr     DispPrompt
+007009  1  20 00 FD                 jsr     pollKBD
+00700C  1  C9 53                    cmp     #'S'
+00700E  1  F0 0A                    beq     @DoXModemSend
+007010  1               ;
+007010  1               @CheckRecv:
+007010  1  C9 52                    cmp     #'R'
+007012  1  F0 0C                    beq     XModemRecv
+007014  1               ;
+007014  1               @CheckBasSave:
+007014  1  C9 42                    cmp     #'B'
+007016  1  F0 05                    beq     @DoXMBasicSave
+007018  1  D0 EC                    bne     GetOpt
+00701A  1               ;
+00701A  1               @DoXModemSend:
+00701A  1  4C A0 71                 jmp     XModemSend
+00701D  1               @DoXMBasicSave:
+00701D  1  4C 63 71                 jmp     XMBasicSave
+007020  1               XModemRecv:
+007020  1               
+007020  1               ;
+007020  1  A9 52                    lda     #'R'
+007022  1  8D 93 D0                 sta     SR_Flag
+007025  1               ;
+007025  1               ;            jsr     XModemInit
+007025  1               ;            jsr     DispRecv
+007025  1  20 19 73                 jsr     PrintMsg                        ; send prompt and info
+007028  1               ;
+007028  1  A9 01                    lda     #$01
+00702A  1  8D 95 D0                 sta     blkno                           ; set block # to 1
+00702D  1  8D 97 D0                 sta     bflag                           ; set flag to get address from block 1
+007030  1               ;
+007030  1               StartCrc:
+007030  1  A9 43                    lda     #'C'                            ; "C" start with CRC mode
+007032  1  20 B1 FC                 jsr     aciaPut                         ; send it
+007035  1  A9 FF                    lda     #$FF
+007037  1  8D 91 D0                 sta     retryh                          ; set loop counter for ~3 sec delay
+00703A  1  A9 00                    lda     #$00
+00703C  1  8D 98 D0                 sta     crc
+00703F  1  8D 99 D0                 sta     crch                            ; init CRC value
+007042  1  20 F5 72                 jsr     GetByte                         ; wait for input
+007045  1  B0 14                    bcs     GotByte                         ; DB received, process it
+007047  1  90 E7                    bcc     StartCrc                        ; resend "C"
+007049  1               ;
+007049  1               StartBlk:
+007049  1  A9 FF                    lda     #$FF                            ;
+00704B  1  8D 91 D0                 sta     retryh                          ; set loop counter for ~3 sec delay
+00704E  1  A9 00                    lda     #$00                            ;
+007050  1  8D 98 D0                 sta     crc                             ;
+007053  1  8D 99 D0                 sta     crch                            ; init CRC value
+007056  1  20 F5 72                 jsr     GetByte                         ; get firstDB of block
+007059  1  90 EE                    bcc     StartBlk                        ; timed out, keep waiting...
+00705B  1               ;
+00705B  1               GotByte:
+00705B  1  C9 1B                    cmp     #ESC                            ; quitting?
+00705D  1  D0 05                    bne     GotByte1                        ; no
+00705F  1  A9 FE                    lda     #$FE                            ; Error code in "A" of desired
+007061  1  4C 00 FE                 jmp     monStart                        ; YES - do BRK or change to RTS if desired
+007064  1               ;
+007064  1               ;
+007064  1               ;
+007064  1               GotByte1:
+007064  1  C9 01                    cmp     #SOH                            ; start of block?
+007066  1  F0 07                    beq     BegBlk                          ; yes
+007068  1  C9 04                    cmp     #EOT                            ;
+00706A  1  D0 5D                    bne     BadCRC                          ; Not SOH or EOT, so flush buffer & send NAK
+00706C  1  4C 2E 71                 jmp     XM_Done                         ; EOT - all done!
+00706F  1               ;
+00706F  1               ;
+00706F  1               ;
+00706F  1               BegBlk:
+00706F  1  A2 00                    ldx     #$00
+007071  1               GetBlk:
+007071  1  A9 FF                    lda     #$ff                            ; 3 sec window to receive characters
+007073  1  8D 91 D0                 sta     retryh                          ;
+007076  1               GetBlk1:
+007076  1  20 F5 72                 jsr     GetByte                         ; get next character
+007079  1  90 4E                    bcc     BadCRC                          ; chr rcv error, flush and send NAK
+00707B  1               GetBlk2:
+00707B  1  9D 00 D1                 sta     Rbuff,x                         ; good char, save it in the rcv buffer
+00707E  1  E8                       inx                                     ; inc buffer pointer
+00707F  1  E0 84                    cpx     #$84                            ; <01> <FE> <128DBs> <CRCH> <CRCL>
+007081  1  D0 EE                    bne     GetBlk                          ; get 132 characters
+007083  1  A2 00                    ldx     #$00                            ;
+007085  1  BD 00 D1                 lda     Rbuff,x                         ; get block # from buffer
+007088  1  CD 95 D0                 cmp     blkno                           ; compare to expected block #
+00708B  1  F0 0B                    beq     GoodBlk1                        ; matched!
+00708D  1  20 1F 73                 jsr     PrintErr                        ; Unexpected block number - abort
+007090  1  20 0E 73                 jsr     Flush                           ; mismatched - flush buffer and then do BRK
+007093  1  A9 FD                    lda     #$FD                            ; put error code in "A" if desired
+007095  1  4C 00 FE                 jmp     monStart                        ; unexpected block # - fatal error - BRK or RTS
+007098  1               ;
+007098  1               ;
+007098  1               ;
+007098  1               GoodBlk1:
+007098  1  49 FF                    eor     #$ff                            ; 1's comp of block #
+00709A  1  E8                       inx                                     ;
+00709B  1  DD 00 D1                 cmp     Rbuff,x                         ; compare with expected 1's comp of block #
+00709E  1  F0 0B                    beq     GoodBlk2                        ; matched!
+0070A0  1  20 1F 73                 jsr     PrintErr                        ; Unexpected block number - abort
+0070A3  1  20 0E 73                 jsr     Flush                           ; mismatched - flush buffer and then do BRK
+0070A6  1  A9 FC                    lda     #$FC                            ; put error code in "A" if desired
+0070A8  1  4C 00 FE                 jmp     monStart                        ; bad 1's comp of block#
+0070AB  1               ;
+0070AB  1               ;
+0070AB  1               ;
+0070AB  1               GoodBlk2:
+0070AB  1  A0 02                    ldy     #$02                            ;
+0070AD  1               ;
+0070AD  1               XMR_CalcCRC:
+0070AD  1  B9 00 D1                 lda     Rbuff,y                         ; calculate the CRC for the 128DBs of data
+0070B0  1  20 6B 73                 jsr     UpdCRC                          ; could inline sub here for speed
+0070B3  1  C8                       iny                                     ;
+0070B4  1  C0 82                    cpy     #$82                            ; 128DBs
+0070B6  1  D0 F5                    bne     XMR_CalcCRC                     ;
+0070B8  1  B9 00 D1                 lda     Rbuff,y                         ; get hi CRC from buffer
+0070BB  1  CD 99 D0                 cmp     crch                            ; compare to calculated hi CRC
+0070BE  1  D0 09                    bne     BadCRC                          ; bad crc, send NAK
+0070C0  1  C8                       iny                                     ;
+0070C1  1  B9 00 D1                 lda     Rbuff,y                         ; get lo CRC from buffer
+0070C4  1  CD 98 D0                 cmp     crc                             ; compare to calculated lo CRC
+0070C7  1  F0 0B                    beq     GoodCRC                         ; good CRC
+0070C9  1               ;
+0070C9  1               BadCRC:
+0070C9  1  20 0E 73                 jsr     Flush                           ; flush the input port
+0070CC  1  A9 15                    lda     #NAK                            ;
+0070CE  1  20 B1 FC                 jsr     aciaPut                         ; send NAK to resend block
+0070D1  1  4C 49 70                 jmp     StartBlk                        ; start over, get the block again
+0070D4  1               ;
+0070D4  1               GoodCRC:
+0070D4  1  A2 02                    ldx     #$02                            ;
+0070D6  1  AD 95 D0                 lda     blkno                           ; get the block number
+0070D9  1  C9 01                    cmp     #$01                            ; 1st block?
+0070DB  1  D0 2C                    bne     CopyBlk                         ; no, copy all 128DBs
+0070DD  1  AD 97 D0                 lda     bflag                           ; is it really block 1, not block 257, 513 etc.
+0070E0  1  F0 27                    beq     CopyBlk                         ; no, copy all 128DBs
+0070E2  1               ;
+0070E2  1  BD 00 D1                 lda     Rbuff,x                         ; get target address from 1st 2DBs of blk 1
+0070E5  1  85 68                    sta     ptr                             ; save lo address
+0070E7  1  85 FE                    sta     zp_monLoadAddrLo
+0070E9  1               ;
+0070E9  1  E8                       inx                                     ;
+0070EA  1  BD 00 D1                 lda     Rbuff,x                         ; get hi address
+0070ED  1  85 69                    sta     ptrh                            ; save it
+0070EF  1  85 FF                    sta     zp_monLoadAddrHi
+0070F1  1               ;
+0070F1  1  20 57 71                 jsr     UpdateDisplay
+0070F4  1               ;
+0070F4  1  A5 68                    lda     ptr
+0070F6  1  C9 00                    cmp     #<BAS_SaveAddr
+0070F8  1  D0 0B                    bne     @Skip
+0070FA  1  A5 69                    lda     ptrh
+0070FC  1  C9 00                    cmp     #>BAS_SaveAddr
+0070FE  1  D0 05                    bne     @Skip
+007100  1               ;
+007100  1  A9 42                    lda     #'B'
+007102  1  8D 93 D0                 sta     SR_Flag
+007105  1               ;
+007105  1               @Skip:
+007105  1  E8                       inx                                     ; point to firstDB of data
+007106  1  CE 97 D0                 dec     bflag                           ; set the flag so we won't get another address
+007109  1               ;
+007109  1               CopyBlk:
+007109  1  A0 00                    ldy     #$00                            ; set offset to zero
+00710B  1               CopyBlk3:
+00710B  1  BD 00 D1                 lda     Rbuff,x                         ; get dataDB from buffer
+00710E  1  91 68                    sta     (ptr),y                         ; save to target
+007110  1  E6 68                    inc     ptr                             ; point to next address
+007112  1  D0 02                    bne     CopyBlk4                        ; did it step over page boundary?
+007114  1  E6 69                    inc     ptr+1                           ; adjust high address for page crossing
+007116  1               ;
+007116  1               CopyBlk4:
+007116  1  E8                       inx                                     ; point to next dataDB
+007117  1  E0 82                    cpx     #$82                            ; is it the lastDB
+007119  1  D0 F0                    bne     CopyBlk3                        ; no, get the next one
+00711B  1               ;
+00711B  1               IncBlk:
+00711B  1  EE 95 D0                 inc     blkno                           ; done.  Inc the block #
+00711E  1  AD 95 D0                 lda     blkno
+007121  1  85 FC                    sta     zp_monLoadByte
+007123  1  20 57 71                 jsr     UpdateDisplay
+007126  1  A9 06                    lda     #ACK                            ; send ACK
+007128  1  20 B1 FC                 jsr     aciaPut                         ;
+00712B  1  4C 49 70                 jmp     StartBlk                        ; get next block
+00712E  1               ;
+00712E  1               ;
+00712E  1               ;
+00712E  1               XM_Done:
+00712E  1  A9 06                    lda     #ACK                            ; last block, send ACK and exit.
+007130  1  20 B1 FC                 jsr     aciaPut                         ;
+007133  1               XM_Exit:
+007133  1  D8                       cld                                                                    ; FF00 D8           .
+007134  1  A2 28                    ldx     #$28                                                           ; FF01 A2 28        .(
+007136  1  9A                       txs
+007137  1               ;
+007137  1  20 0E 73                 jsr     Flush                           ; get leftover characters, if any
+00713A  1  20 25 73                 jsr     PrintGood                       ;
+00713D  1               
+00713D  1  AD 93 D0                 lda     SR_Flag                         ; SR_Flag lives in screen RAM, so grab it before we blow it away!
+007140  1  20 86 71                 jsr     clrScreen                       ; Clear the screen
+007143  1               ;
+007143  1  C9 42                    cmp     #'B'
+007145  1  F0 0A                    beq     BAS_Start
+007147  1               ;
+007147  1               MON_Start:
+007147  1  C9 52                    cmp     #'R'
+007149  1  F0 03                    beq     PGM_Start
+00714B  1               ;
+00714B  1  4C 00 FE                 jmp     monStart
+00714E  1               ;
+00714E  1               PGM_Start:
+00714E  1  6C FE 00                 jmp     (zp_monLoadAddrLo)
+007151  1               ;
+007151  1               BAS_Start:
+007151  1  4C 74 A2                 jmp     $A274
+007154  1               ;
+007154  1  4C 54 71     halt:       jmp     halt
+007157  1               ;
+007157  1               ;
+007157  1               UpdateDisplay:
+007157  1  8A                       txa
+007158  1  48                       pha
+007159  1  98                       tya
+00715A  1  48                       pha
+00715B  1  20 AC FE                 jsr     disp4bytes
+00715E  1  68                       pla
+00715F  1  A8                       tay
+007160  1  68                       pla
+007161  1  AA                       tax
+007162  1               
+007162  1  60                       rts
+007163  1               ;
+007163  1               ;
+007163  1               ;================================================================================
+007163  1               XMBasicSave:
+007163  1               ;            cld                                     ; Prep the CPU & Stack
+007163  1               ;            ldx     #$28                            ;
+007163  1               ;            txs                                     ;
+007163  1               ;
+007163  1  A0 00                    ldy     #$00                            ; Display the Send/Recv Flag
+007165  1  A9 42                    lda     #'B'                            ; We are Sending
+007167  1  8D 93 D0                 sta     SR_Flag                         ; It in the display RAM so it just shows up!
+00716A  1               ;
+00716A  1               ;            jsr     XModemInit
+00716A  1               ;
+00716A  1               ;           Basic Start ADDR
+00716A  1  A9 00                    lda     #<BAS_SaveAddr
+00716C  1  85 68                    sta     ptr
+00716E  1  85 FE                    sta     zp_monLoadAddrLo
+007170  1               
+007170  1  A9 00                    lda     #>BAS_SaveAddr
+007172  1  85 69                    sta     ptrh
+007174  1  85 FF                    sta     zp_monLoadAddrHi
+007176  1               ;
+007176  1               ;           Basic End Addr
+007176  1  A5 7F                    lda     zp_bas_emptyRAM
+007178  1  8D B5 D0                 sta     eofp
+00717B  1  A5 80                    lda     zp_bas_emptyRAM+1
+00717D  1  8D B6 D0                 sta     eofph
+007180  1               
+007180  1  20 57 71                 jsr     UpdateDisplay
+007183  1  4C CD 71                 jmp     XMSendStart
+007186  1               ;
+007186  1               ;================================================================================
+007186  1               clrScreen:
+007186  1  48                   pha
+007187  1  98                   tya
+007188  1  48                   pha
+007189  1  A9 20                lda     #$20
+00718B  1  A0 00                ldy     #$00
+00718D  1               ;
+00718D  1               @Loop:
+00718D  1  99 00 D3             sta     displayRAM+$300,y
+007190  1  99 00 D2             sta     displayRAM+$200,y
+007193  1  99 00 D1             sta     displayRAM+$100,y
+007196  1  99 00 D0             sta     displayRAM,y
+007199  1  C8                   iny
+00719A  1  D0 F1                bne     @Loop
+00719C  1               ;
+00719C  1  68                   pla
+00719D  1  A8                   tay
+00719E  1  68                   pla
+00719F  1  60                   rts
+0071A0  1               ;
+0071A0  1               ;================================================================================
+0071A0  1               ;            .org    $7200
+0071A0  1               ;            .align   256
+0071A0  1               XModemSend:
+0071A0  1               ;            cld                                 ; Prep the CPU & Stack
+0071A0  1               ;            ldx     #$28                        ;
+0071A0  1               ;            txs                                 ;
+0071A0  1               
+0071A0  1  A0 00                    ldy     #$00                        ; Display the Send/Recv Flag
+0071A2  1  A9 53                    lda     #'S'                        ; We are Sending
+0071A4  1  8D 93 D0                 sta     SR_Flag                     ; It in the display RAM so it just shows up!
+0071A7  1               ;
+0071A7  1               ;            jsr     XModemInit
+0071A7  1               ;            jsr     DispSend
+0071A7  1               ;
+0071A7  1               ;
+0071A7  1               ; Get the start address
+0071A7  1  20 2B 73                 jsr     DispStart
+0071AA  1               GetStartAddr:
+0071AA  1  20 DE 72                 jsr     GetAddr
+0071AD  1  C9 0D                    cmp     #CR
+0071AF  1  D0 F9                    bne     GetStartAddr
+0071B1  1               ;
+0071B1  1  A5 FE                    lda     zp_monLoadAddrLo
+0071B3  1  85 68                    sta     ptr
+0071B5  1  A5 FF                    lda     zp_monLoadAddrHi
+0071B7  1  85 69                    sta     ptrh
+0071B9  1               ;
+0071B9  1               ; Get the end address
+0071B9  1  20 33 73                 jsr     DispEnd
+0071BC  1               GetEndAddr:
+0071BC  1  20 DE 72                 jsr     GetAddr
+0071BF  1  C9 0D                    cmp     #CR
+0071C1  1  D0 F9                    bne     GetEndAddr
+0071C3  1               ;
+0071C3  1  A5 FE                    lda     zp_monLoadAddrLo
+0071C5  1  8D B5 D0                 sta     eofp
+0071C8  1  A5 FF                    lda     zp_monLoadAddrHi
+0071CA  1  8D B6 D0                 sta     eofph
+0071CD  1               ;
+0071CD  1               ;            jsr     DispAddr
+0071CD  1               XMSendStart:
+0071CD  1  20 19 73                 jsr     PrintMsg                                 ; send prompt and info
+0071D0  1               ;
+0071D0  1  A9 00                    lda     #$00                                     ;
+0071D2  1  8D 96 D0                 sta     errcnt                                   ; error counter set to 0
+0071D5  1  8D 94 D0                 sta     lastblk                                  ; set flag to false
+0071D8  1  A9 01                    lda     #$01                                     ;
+0071DA  1  8D 95 D0                 sta     blkno                                    ; set block # to 1
+0071DD  1               ;
+0071DD  1               Wait4CRC:
+0071DD  1  A9 FF                    lda     #$ff                                     ; 3 seconds
+0071DF  1  8D 91 D0                 sta     retryh                                   ;
+0071E2  1               
+0071E2  1  20 F5 72                 jsr     GetByte                                  ;
+0071E5  1  90 F6                    bcc     Wait4CRC                                 ; wait for something to come in...
+0071E7  1               
+0071E7  1  8D B7 D0                 sta     debugChar
+0071EA  1               
+0071EA  1  C9 43                    cmp     #'C'                                     ; is it the "C" to start a CRC xfer?
+0071EC  1  F0 07                    beq     SetstAddr                                ; yes
+0071EE  1  C9 1B                    cmp     #ESC                                     ; is it a cancel? <Esc> Key
+0071F0  1  D0 EB                    bne     Wait4CRC                                 ; No, wait for another character
+0071F2  1  4C BF 72                 jmp     PrtAbort                                 ; Print abort msg and exit
+0071F5  1               ;
+0071F5  1               ;
+0071F5  1               ;
+0071F5  1               SetstAddr:
+0071F5  1  A0 00                    ldy     #$00                                     ; init data block offset to 0
+0071F7  1  A2 04                    ldx     #$04                                     ; preload X to Receive buffer
+0071F9  1  A9 01                    lda     #$01                                     ; manually load Blk #1
+0071FB  1  8D 00 D1                 sta     Rbuff                                    ; into 1st byte
+0071FE  1  A9 FE                    lda     #$FE                                     ; load 1's comp of block #
+007200  1  8D 01 D1                 sta     Rbuff+1                                  ; into 2nd byte
+007203  1  A5 68                    lda     ptr                                      ; load low byte of start address
+007205  1  8D 02 D1                 sta     Rbuff+2                                  ; into 3rd byte
+007208  1  A5 69                    lda     ptrh                                     ; load hi byte of start address
+00720A  1  8D 03 D1                 sta     Rbuff+3                                  ; into 4th byte
+00720D  1               
+00720D  1  4C 3A 72                 jmp     LdBuff1                                  ; jump into buffer load routine
+007210  1               ;
+007210  1               LdBuffer:
+007210  1  AD 95 D0                 lda     blkno
+007213  1  85 FC                    sta     zp_monLoadByte
+007215  1  A5 68                    lda     ptr
+007217  1  85 FE                    sta     zp_monLoadAddrLo
+007219  1  A5 69                    lda     ptrh
+00721B  1  85 FF                    sta     zp_monLoadAddrHi
+00721D  1  20 57 71                 jsr     UpdateDisplay
+007220  1               ;
+007220  1  AD 94 D0                 lda     lastblk                                  ; Was the last block sent?
+007223  1  F0 03                    beq     LdBuff0                                  ; no, send the next one
+007225  1               
+007225  1  4C 2E 71                 jmp     XM_Done
+007228  1               ;
+007228  1               LdBuff0:
+007228  1  A2 02                    ldx     #$02                                     ; init pointers
+00722A  1  A0 00                    ldy     #$00                                     ;
+00722C  1  EE 95 D0                 inc     blkno                                    ; inc block counter
+00722F  1  AD 95 D0                 lda     blkno                                    ;
+007232  1  8D 00 D1                 sta     Rbuff                                    ; save in 1st byte of buffer
+007235  1  49 FF                    eor     #$FF                                     ;
+007237  1  8D 01 D1                 sta     Rbuff+1                                  ; save 1's comp of blkno next
+00723A  1               
+00723A  1               LdBuff1:
+00723A  1  B1 68                    lda     (ptr),y                                  ; save 128 bytes of data
+00723C  1  9D 00 D1                 sta     Rbuff,x                                  ;
+00723F  1               LdBuff2:
+00723F  1  38                       sec                                              ;
+007240  1  AD B5 D0                 lda     eofp                                     ;
+007243  1  E5 68                    sbc     ptr                                      ; Are we at the last address?
+007245  1  D0 16                    bne     LdBuff4                                  ; no, inc pointer and continue
+007247  1  AD B6 D0                 lda     eofph                                    ;
+00724A  1  E5 69                    sbc     ptrh                                     ;
+00724C  1  D0 0F                    bne     LdBuff4                                  ;
+00724E  1  EE 94 D0                 inc     lastblk                                  ; Yes, Set last byte flag
+007251  1               LdBuff3:
+007251  1  E8                       inx                                              ;
+007252  1  E0 82                    cpx     #$82                                     ; Are we at the end of the 128 byte block?
+007254  1  F0 12                    beq     XMS_CalcCRC                              ; Yes, calc CRC
+007256  1  A9 00                    lda     #$00                                     ; Fill rest of 128 bytes with $00
+007258  1  9D 00 D1                 sta     Rbuff,x                                  ;
+00725B  1  F0 F4                    beq     LdBuff3                                  ; Branch always
+00725D  1               
+00725D  1               LdBuff4:
+00725D  1  E6 68                    inc     ptr                                      ; Inc address pointer
+00725F  1  D0 02                    bne     LdBuff5                                  ;
+007261  1  E6 69                    inc     ptrh                                     ;
+007263  1               LdBuff5:
+007263  1  E8                       inx                                              ;
+007264  1  E0 82                    cpx     #$82                                     ; last byte in block?
+007266  1  D0 D2                    bne     LdBuff1                                  ; no, get the next
+007268  1               ;
+007268  1               XMS_CalcCRC:
+007268  1  A9 00                    lda     #$00                                     ; yes, calculate the CRC for the 128 bytes
+00726A  1  8D 98 D0                 sta     crc                                      ;
+00726D  1  8D 99 D0                 sta     crch                                     ;
+007270  1  A0 02                    ldy     #$02                                     ;
+007272  1               @Loop:
+007272  1  B9 00 D1                 lda     Rbuff,y                                  ;
+007275  1  20 6B 73                 jsr     UpdCRC                                   ;
+007278  1  C8                       iny                                              ;
+007279  1  C0 82                    cpy     #$82                                     ; done yet?
+00727B  1  D0 F5                    bne     @Loop                                    ; no, get next
+00727D  1  AD 99 D0                 lda     crch                                     ; save Hi byte of CRC to buffer
+007280  1  99 00 D1                 sta     Rbuff,y                                  ;
+007283  1  C8                       iny                                              ;
+007284  1  AD 98 D0                 lda     crc                                      ; save lo byte of CRC to buffer
+007287  1  99 00 D1                 sta     Rbuff,y                                  ;
+00728A  1               ;
+00728A  1               Resend:
+00728A  1  A2 00                    ldx     #$00                                     ;
+00728C  1  A9 01                    lda     #SOH                                     ; Send start block command
+00728E  1  20 B1 FC                 jsr     aciaPut                                  ;
+007291  1               ;
+007291  1               SendBlk:
+007291  1  BD 00 D1                 lda     Rbuff,x                                  ; Send 133 bytes in buffer to the console
+007294  1  20 B1 FC                 jsr     aciaPut                                  ;
+007297  1  E8                       inx                                              ;
+007298  1  E0 84                    cpx     #$84                                     ; last byte?
+00729A  1  D0 F5                    bne     SendBlk                                  ; no, get next
+00729C  1  A9 FF                    lda     #$FF                                     ; yes, set 3 second delay
+00729E  1  8D 91 D0                 sta     retryh                                   ; and
+0072A1  1  20 F5 72                 jsr     GetByte                                  ; Wait for Ack/Nack
+0072A4  1  90 0F                    bcc     Seterror                                 ; No chr received after 3 seconds, resend
+0072A6  1  C9 06                    cmp     #ACK                                     ; Chr received... is it:
+0072A8  1  D0 03                    bne     SendBlk2                                 ; --- UGLY: beq can't reach LdBuffer, it' stoo far away!
+0072AA  1  4C 10 72                 jmp     LdBuffer                                 ; ACK, send next block
+0072AD  1               SendBlk2:
+0072AD  1  C9 15                    cmp     #NAK                                     ;
+0072AF  1  F0 04                    beq     Seterror                                 ; NAK, inc errors and resend
+0072B1  1  C9 1B                    cmp     #ESC                                     ;
+0072B3  1  F0 0A                    beq     PrtAbort                                 ; Esc pressed to abort
+0072B5  1                                                                            ; fall through to error counter
+0072B5  1               Seterror:
+0072B5  1  EE 96 D0                 inc     errcnt                                   ; Inc error counter
+0072B8  1  AD 96 D0                 lda     errcnt                                   ;
+0072BB  1  C9 0A                    cmp     #$0A                                     ; are there 10 errors? (Xmodem spec for failure)
+0072BD  1  D0 CB                    bne     Resend                                   ; no, resend block
+0072BF  1               
+0072BF  1               PrtAbort:
+0072BF  1  20 1F 73                 jsr     PrintErr
+0072C2  1  4C 33 71                 jmp     XM_Exit
+0072C5  1               ;
+0072C5  1               ;
+0072C5  1               XModemInit:
+0072C5  1  A9 85                    lda     #<displayRAM+$85
+0072C7  1  85 FC                    sta     screen_ptr
+0072C9  1  A9 D0                    lda     #>displayRAM
+0072CB  1  85 FD                    sta     screen_ptr+1
+0072CD  1               ;
+0072CD  1  A9 00                    lda     #$00
+0072CF  1  85 FB                    sta     zp_monLoadFlag
+0072D1  1               ;
+0072D1  1  20 A6 FC                 jsr     aciaInit
+0072D4  1  20 0E 73                 jsr     Flush
+0072D7  1  20 AC FE                 jsr     disp4bytes
+0072DA  1               ;            jsr     DispBlocks
+0072DA  1               ;            jsr     DispAddr
+0072DA  1  20 7F 73                 jsr     MakeCRCTable                             ; Build the CRC tables
+0072DD  1  60                       rts
+0072DE  1               
+0072DE  1               ;
+0072DE  1               ;^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+0072DE  1               GetAddr:
+0072DE  1  20 00 FD                 jsr     pollKBD                               ; Get a CHAR from KDB (or TAPE/Serial)
+0072E1  1  C9 0D                    cmp     #CR                                     ; Return Key?
+0072E3  1  F0 0F                    beq     @Done
+0072E5  1               ;
+0072E5  1  20 93 FE                 jsr     hex2bin                                 ; Convert Ascii Hex to binary
+0072E8  1  A2 02                    ldx     #$02                                    ; ???? Why?
+0072EA  1  20 DA FE                 jsr     rollAD                                  ; Roll the incomming Hybble into the ADDR ptr
+0072ED  1  B1 FE                    lda     (zp_monLoadAddrLo),y                    ; Grab the data stored at this new addr
+0072EF  1  85 FC                    sta     zp_monLoadByte                          ; Store it for display
+0072F1  1  20 AC FE                 jsr     disp4bytes                              ; Display the Addr & Data  "0000  00"
+0072F4  1               @Done:
+0072F4  1  60                       rts
+0072F5  1               ;
+0072F5  1               ;
+0072F5  1               ; Get a char from the ACIA UART with a time out
+0072F5  1               GetByte:
+0072F5  1  A9 FF                    lda     #$FF                                    ; wait for chr input and cycle timing loop
+0072F7  1  8D 90 D0                 sta     retry                                   ; set low value of timing loop
+0072FA  1  8D 91 D0                 sta     retryh
+0072FD  1               @Loop:
+0072FD  1  20 54 73                 jsr     aciaGet                                 ; get chr from serial port, don't wait
+007300  1  B0 0B                    bcs     @Done                                   ; got one, so exit
+007302  1  CE 90 D0                 dec     retry                                   ; no character received, so dec counter
+007305  1  D0 F6                    bne     @Loop                                   ;
+007307  1  CE 91 D0                 dec     retryh                                  ; dec hiDB of counter
+00730A  1  D0 F1                    bne     @Loop                                   ; look for character again
+00730C  1  18                       clc                                             ; if loop times out, CLC, else SEC and return
+00730D  1               @Done:
+00730D  1  60                       rts                                             ; with character in "A"
+00730E  1               ;
+00730E  1               ;
+00730E  1               ; Drain any incomming cars from the ACIA UART.
+00730E  1               ; When chars stop we exit
+00730E  1               Flush:
+00730E  1  A9 70                    lda     #$70                                    ; flush receive buffer
+007310  1  8D 91 D0                 sta     retryh                                  ; flush until empty for ~1 sec.
+007313  1               @Loop:
+007313  1  20 F5 72                 jsr     GetByte                                 ; read the port
+007316  1  B0 FB                    bcs     @Loop                                   ; if chr recvd, wait for another
+007318  1  60                       rts                                             ; else done
+007319  1               ;
+007319  1               PrintMsg:
+007319  1               @offset = ( strPrintMsg - stringTable )&$FF
+007319  1  A2 06                    ldx     #@offset
+00731B  1  20 5E 73                 jsr     aciaStrOut
+00731E  1  60                       rts
+00731F  1               
+00731F  1               ;
+00731F  1               ;
+00731F  1               ;
+00731F  1               PrintErr:
+00731F  1               @offset = ( strErrMsg - stringTable )&$FF
+00731F  1  A2 13                    ldx     #@offset
+007321  1  20 5E 73                 jsr     aciaStrOut
+007324  1  60                       rts
+007325  1               ;
+007325  1               ;
+007325  1               ;
+007325  1               PrintGood:
+007325  1               @offset = ( strGoodMsg - stringTable )&$FF
+007325  1  A2 1B                    ldx     #@offset
+007327  1  20 5E 73                 jsr     aciaStrOut
+00732A  1  60                       rts
+00732B  1               ;
+00732B  1               ;
+00732B  1               .IF 0
+00732B  1               DispBlocks:
+00732B  1               @offset = ( strBlocks - stringTable )&$FF
+00732B  1                           ldx     #@offset
+00732B  1                           lda     #$CF
+00732B  1                           jsr     screenOut
+00732B  1                           rts
+00732B  1               ;
+00732B  1               
+00732B  1               
+00732B  1               DispAddr:
+00732B  1               @offset = ( strAddr - stringTable )&$FF
+00732B  1                           ldx     #@offset
+00732B  1                           lda     #$A5
+00732B  1                           jsr     screenOut
+00732B  1                           rts
+00732B  1               .ENDIF
+00732B  1               ;
+00732B  1               DispStart:
+00732B  1               @offset = ( strStart - stringTable )&$FF
+00732B  1  A2 2D                    ldx     #@offset
+00732D  1  A9 A5                    lda     #$A5
+00732F  1  20 43 73                 jsr     screenOut
+007332  1  60                       rts
+007333  1               ;
+007333  1               DispEnd:
+007333  1               @offset = ( strEnd - stringTable )&$FF
+007333  1  A2 33                    ldx     #@offset
+007335  1  A9 A5                    lda     #$A5
+007337  1  20 43 73                 jsr     screenOut
+00733A  1  60                       rts
+00733B  1               ;
+00733B  1               .IF 0
+00733B  1               DispSend:
+00733B  1               @offset = ( strXM_Send - stringTable )&$FF      ; Get the string location in the Table
+00733B  1                           ldx     #@offset                    ; Save it for screenOut
+00733B  1                           lda     #$85                        ; Display @ this offset
+00733B  1                           jsr     screenOut                   ; Display the string
+00733B  1                           rts
+00733B  1               
+00733B  1               ;
+00733B  1               DispRecv:
+00733B  1               @offset = ( strXM_Recv - stringTable )&$FF
+00733B  1                           ldx     #@offset
+00733B  1                           lda     #$85
+00733B  1                           jsr     screenOut
+00733B  1                           rts
+00733B  1               .ENDIF
+00733B  1               ;
+00733B  1               DispPrompt:
+00733B  1               @offset = ( strPrompt - stringTable )&$FF
+00733B  1  A2 00                    ldx     #@offset
+00733D  1  A9 85                    lda     #$85
+00733F  1  20 43 73                 jsr     screenOut
+007342  1  60                       rts
+007343  1               ;======================================================================
+007343  1               ;
+007343  1               screenOut:
+007343  1  A0 00                    ldy     #$00
+007345  1  85 FC                    sta     screen_ptr
+007347  1               @Loop:
+007347  1  BD B6 73                 lda     stringTable,x
+00734A  1  F0 07                    beq     @Done
+00734C  1  91 FC                    sta     (screen_ptr),y
+00734E  1  E8                       inx
+00734F  1  C8                       iny
+007350  1  4C 47 73                 jmp     @Loop
+007353  1               @Done:
+007353  1  60                       rts
+007354  1               ;
+007354  1               ;
+007354  1               ;
+007354  1               aciaGet:
+007354  1  AD 00 F0                 lda     aciaStatus
+007357  1  4A                       lsr     a
+007358  1  90 03                    bcc     @Done
+00735A  1  AD 01 F0                 lda     aciaData
+00735D  1               @Done:
+00735D  1  60                       rts
+00735E  1               
+00735E  1               ;
+00735E  1               ;
+00735E  1               ;
+00735E  1               aciaStrOut:
+00735E  1               @Loop:
+00735E  1  BD B6 73                 lda     stringTable,x
+007361  1  F0 07                    beq     @Done
+007363  1  20 B1 FC                 jsr     aciaPut
+007366  1  E8                       inx
+007367  1  4C 5E 73                 jmp     @Loop
+00736A  1               @Done:
+00736A  1  60                       rts
+00736B  1               
+00736B  1               
+00736B  1               
+00736B  1               
+00736B  1               ;
+00736B  1               ;  CRC subroutines
+00736B  1               ;
+00736B  1               ;
+00736B  1  4D 99 D0     UpdCRC:     eor     crc+1                       ; Quick CRC computation with lookup tables
+00736E  1  AA                       tax                                 ; updates the twoDBs at crc & crc+1
+00736F  1  AD 98 D0                 lda     crc                         ; with theDB send in the "A" register
+007372  1  5D 00 D3                 eor     crchi,X
+007375  1  8D 99 D0                 sta     crc+1
+007378  1  BD 00 D2                 lda     crclo,X
+00737B  1  8D 98 D0                 sta     crc
+00737E  1  60                       rts
+00737F  1               ;
+00737F  1               ; Alternate solution is to build the two lookup tables at run-time.  This might
+00737F  1               ; be desirable if the program is running from ram to reduce binary upload time.
+00737F  1               ; The following code generates the data for the lookup tables.  You would need to
+00737F  1               ; un-comment the variable declarations for crclo & crchi in the Tables and Constants
+00737F  1               ; section above and call this routine to build the tables before calling the
+00737F  1               ; "xmodem" routine.
+00737F  1               ;
+00737F  1               MakeCRCTable:
+00737F  1  A2 00                    ldx     #$00
+007381  1  A9 00                    LDA     #$00
+007383  1               zeroloop:
+007383  1  9D 00 D2                 sta     crclo,x
+007386  1  9D 00 D3                 sta     crchi,x
+007389  1  E8                       inx
+00738A  1  D0 F7                    bne     zeroloop
+00738C  1  A2 00                    ldx     #$00
+00738E  1               fetch:
+00738E  1  8A                       txa
+00738F  1  5D 00 D3                 eor     crchi,x
+007392  1  9D 00 D3                 sta     crchi,x
+007395  1  A0 08                    ldy     #$08
+007397  1               fetch1:
+007397  1  1E 00 D2                 asl     crclo,x
+00739A  1  3E 00 D3                 rol     crchi,x
+00739D  1  90 10                    bcc     fetch2
+00739F  1  BD 00 D3                 lda     crchi,x
+0073A2  1  49 10                    eor     #$10
+0073A4  1  9D 00 D3                 sta     crchi,x
+0073A7  1  BD 00 D2                 lda     crclo,x
+0073AA  1  49 21                    eor     #$21
+0073AC  1  9D 00 D2                 sta     crclo,x
+0073AF  1               fetch2:
+0073AF  1  88                       dey
+0073B0  1  D0 E5                    bne     fetch1
+0073B2  1  E8                       inx
+0073B3  1  D0 D9                    bne     fetch
+0073B5  1  60                       rts
+0073B6  1               
+0073B6  1               ;
+0073B6  1               ;
+0073B6  1               ;                .align  256
+0073B6  1               stringTable:
+0073B6  1  53 2F 52 2F  strPrompt:      .asciiz     "S/R/B"
+0073BA  1  42 00        
+0073BC  1  58 4D 4F 44  strPrintMsg:    .asciiz     "XMODEM/CRC\r\n"
+0073C0  1  45 4D 2F 43  
+0073C4  1  52 43 0D 0A  
+0073C9  1  45 72 72 6F  strErrMsg:      .asciiz     "Error\r\n"
+0073CD  1  72 0D 0A 00  
+0073D1  1  04 0D 0A 04  strGoodMsg:     .byte       EOT,CR,LF,EOT,CR,LF,EOT,CR,LF,CR,LF
+0073D5  1  0D 0A 04 0D  
+0073D9  1  0A 0D 0A     
+0073DC  1  47 6F 6F 64                  .asciiz     "Good\r\n"
+0073E0  1  0D 0A 00     
+0073E3  1               ;strXM_Send:     .asciiz     "Send"
+0073E3  1               ;strXM_Recv:     .asciiz     "Recv"
+0073E3  1               ;strBlocks:      .asciiz     "Blocks"
+0073E3  1               ;strAddr:        .asciiz     "Addr "
+0073E3  1  53 74 61 72  strStart:       .asciiz     "Start"
+0073E7  1  74 00        
+0073E9  1  45 6E 64 20  strEnd:         .asciiz     "End  "
+0073ED  1  20 00        
+0073EF  1               
+0073EF  1               ;
+0073EF  1               ; End of string table
+0073EF  1  xx xx xx xx  .align 256
+0073F3  1  xx xx xx xx  
+0073F7  1  xx xx xx xx  
+007400  1               .endproc
+007400  1               

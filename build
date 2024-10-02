@@ -1,0 +1,18 @@
+#!/bin/bash
+set -x
+
+CC_DIR="${CC65_HOME}"
+CA65_INC=" -I ${CC_DIR}/libsrc/osic1p "
+
+#
+fileName="xmodem"
+loadAddress="0x7000"                ### Change this to load the C1P file at another address!!!
+
+#
+ca65 -D _StandAlone_ -I . ${CA65_INC} -g -s -l ${fileName}.lst -o ${fileName}.o -s -t osic1p ${fileName}.s
+ld65 -C osic1p.cfg  -v -vm -m ${fileName}.map -o ${fileName} ${fileName}.o osic1p.lib
+srec_cat ${fileName} -binary -offset ${loadAdress} -o ${fileName}.c1p -Ohio_Scientific -execution-start-address=${startAddress}
+
+#
+cl65 -g -Ln jhe600.lbl ${CA65_INC} -C ./osic1p-asm.cfg --verbose --start-addr 0xf800 -t none --add-source -l jhe600.lst  jhe600.s -o jhe600.bin
+cp jhe600.bin ./SB-3-Propeller/.

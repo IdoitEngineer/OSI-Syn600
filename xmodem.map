@@ -1,0 +1,69 @@
+Modules list:
+-------------
+xmodem.o:
+    CODE              Offs=000000  Size=000400  Align=00100  Fill=0000
+    RODATA            Offs=000000  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000000  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+    STARTUP           Offs=000000  Size=000000  Align=00001  Fill=0000
+
+
+Segment list:
+-------------
+Name                   Start     End    Size  Align
+----------------------------------------------------
+NULL                  000000  000000  000000  00001
+ZEROPAGE              000002  000002  000000  00001
+CODE                  000200  0005FF  000400  00100
+STARTUP               000200  000200  000000  00001
+BSS                   000600  000600  000000  00001
+DATA                  000600  000600  000000  00001
+RODATA                000600  000600  000000  00001
+
+
+Exports list by name:
+---------------------
+XM_RomStart               007000  LA    __BSS_LOAD__              000600  LA    
+__BSS_RUN__               000600  LA    __BSS_SIZE__              000000  EA    
+__HIMEM__                 008000 REA    __MAIN_FILEOFFS__         000000  EA    
+__MAIN_LAST__             000600  LA    __MAIN_SIZE__             007A00  EA    
+__MAIN_START__            000200  LA    __STACKSIZE__             000400 REA    
+__ZP_FILEOFFS__           000000  EA    __ZP_LAST__               000002  LA    
+__ZP_SIZE__               00003A  EA    __ZP_START__              000002  LA    
+clrScreen                 007186  LA    
+
+
+Exports list by value:
+----------------------
+__BSS_SIZE__              000000  EA    __MAIN_FILEOFFS__         000000  EA    
+__ZP_FILEOFFS__           000000  EA    __ZP_LAST__               000002  LA    
+__ZP_START__              000002  LA    __ZP_SIZE__               00003A  EA    
+__MAIN_START__            000200  LA    __STACKSIZE__             000400 REA    
+__BSS_LOAD__              000600  LA    __BSS_RUN__               000600  LA    
+__MAIN_LAST__             000600  LA    XM_RomStart               007000  LA    
+clrScreen                 007186  LA    __MAIN_SIZE__             007A00  EA    
+__HIMEM__                 008000 REA    
+
+
+Imports list:
+-------------
+XM_RomStart (xmodem.o):
+__BSS_LOAD__ ([linker generated]):
+__BSS_RUN__ ([linker generated]):
+__BSS_SIZE__ ([linker generated]):
+__HIMEM__ ([linker generated]):
+    [linker generated]        /share/cc65/cfg/osic1p.cfg:15
+__MAIN_FILEOFFS__ ([linker generated]):
+__MAIN_LAST__ ([linker generated]):
+__MAIN_SIZE__ ([linker generated]):
+__MAIN_START__ ([linker generated]):
+__STACKSIZE__ ([linker generated]):
+    [linker generated]        /share/cc65/cfg/osic1p.cfg:15
+__ZP_FILEOFFS__ ([linker generated]):
+__ZP_LAST__ ([linker generated]):
+__ZP_SIZE__ ([linker generated]):
+__ZP_START__ ([linker generated]):
+clrScreen (xmodem.o):
+
