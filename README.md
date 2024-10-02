@@ -7,7 +7,6 @@ It turns out the Super-Board machines never used this lower 1k for anything
 So I grabbed the X-Modem source code courtesy of Daryl Rictor & Ross Archer Cira Aug 2002
 
 ---
-
 The New ROM image now has an added **X** option that takes you to the X-Modem addition
 
 From there you can send, receive or save a basic program (Which just dumps everything from hex 0000 to the end of the basic programs as 
@@ -67,7 +66,17 @@ source the new value</br>
 
 **source ~/.profile**  or .bashrc</br>
 
+The next option is **B** for BASIC... It won't ask you anything as it starts at address $0000 and grabs 
+the end of the basic program from BASICs data pointers in the zero page
 
+## Notes
+
+This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git
+**git clone https://github.com/cc65/cc65.git**
+Then add the following to your **.profile** or **.bashrc** file
+**CC65_HOME=/home/\<your user name\>/path/to/cc65**
+source the new value
+**source ~/.profile**  or .bashrc
 
 This repo has a copy of the Propeller IDE and spin code as developed by Vince Briel
 This is so the update can easily be applied to the SuperBoard-3 machines. 
@@ -95,7 +104,7 @@ also in the repo there is a stand-alone X-Modem dot c1p file which currently loa
 You can however easily rebuild the C1P file by modifying the build script from in the same directory and specify your own load address
 The build bash script will also generate the new ROM image for you
 
-## Special thanks
+##  Special thanks
 
 Vince Briel without whom the SuperBoard-3 would never exit
 Daryl Rictor & Ross Archer for the X-Modem 6502 code
