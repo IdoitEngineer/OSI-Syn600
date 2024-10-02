@@ -61,6 +61,12 @@ From the Monitor
 * 10    <--- The new divisor value for the UART
 * .     <--- Back to ADDR mode
 
+
+The **old** section of the syn600 ROM was disasembled via da65 and annotated by me.
+This process was to re-assemble and check the resulting binary for any differences.
+I made a **few** changes here, but most of the entry points should be the same
+
+
 ## Other changes
 I've also taken the liberty of changing the default screen resolution to 32 by 32, as I was finding it a pain to always switch it
 The old hold <break> key down on power up will give you the old 24x24 screen again
