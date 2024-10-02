@@ -6,6 +6,8 @@ What I've done here is to put an X-Modem implementation into the lower 1k of the
 It turns out the Super-Board machines never used this lower 1k for anything
 So I grabbed the X-Modem source code courtesy of Daryl Rictor & Ross Archer Cira Aug 2002
 
+---
+
 The New ROM image now has an added **X** option that takes you to the X-Modem addition
 
 From there you can send, receive or save a basic program (Which just dumps everything from hex 0000 to the end of the basic programs as 
