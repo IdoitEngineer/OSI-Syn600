@@ -76,12 +76,15 @@ the end of the basic program from BASICs data pointers in the zero page.
 This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git
 
 > **git clone https://github.com/cc65/cc65.git** </br>
->
+> 
+> Check the CC65 README & build it </br>
+> 
 > Then add the following to your **.profile** or **.bashrc** file </br>
->
+> 
 > **CC65_HOME=/home/\<your user name\>/path/to/cc65** </br>
 
 source the new value </br>
+
 > **source ~/.profile**  or .bashrc </br>
 
 This repo has a copy of the Propeller IDE and spin code as developed by Vince Briel
@@ -92,13 +95,13 @@ But you can "poke" a new multiplier into the UART at \$F000, the divide by one H
 From the **Monitor**
 
 > **.**               <--- to get to ADDR mode </br>
->
+> 
 > **F000**        <--- Address of the UART </br>
->
+> 
 > **/**               <--- Switch to DATA mode </br>
->
+> 
 > **10**            <--- The new divisor value for the UART </br>
->
+> 
 > .               <--- Back to ADDR mode </br>
 
 The **old** section of the syn600 ROM was disassembled via da65 and annotated by me.
@@ -131,7 +134,10 @@ the \$F7,\$F8 and \$F9,\$FA pairs, the new ROM code should then do the right thi
 
 I've also taken the liberty of changing the default screen resolution to 32x32; As I was finding it a pain to always switch it. 
 The old hold the **\<break\>** key down on power up will give you the old 24x24 screen again. 
-also in the repo there is a stand-alone X-Modem c1p file which currently loads at hex 7000, so if you want to use that you will 
+
+## Stand alone X-Modem
+
+Also in the repo there is a stand-alone X-Modem c1p file which currently loads at hex 7000, so if you want to use that you will 
 need a 32k machine.
 
 You can however easily rebuild the C1P file by modifying the build script from in the same directory and specify your own load address
@@ -140,4 +146,5 @@ The same build bash script will also generate the new ROM image for you
 ## Special thanks
 
 Vince Briel without whom the SuperBoard-3 would never exit
+
 Daryl Rictor & Ross Archer for the X-Modem 6502 code

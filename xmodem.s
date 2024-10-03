@@ -51,34 +51,34 @@
 ;
 ; zero page variables (adjust these to suit your needs)
 ;
-;
-;            .include        "osic1p.inc"
-;            .include        "osiscreen.inc"
 
             .setcpu         "6502"
             .smart          on
             .autoimport     on
             .case           on
             .debuginfo      off
-            .importzp       sp, sreg, regsave, regbank
-            .importzp       tmp1, tmp2, tmp3, tmp4, ptr1, ptr2, ptr3, ptr4
             .FEATURE        STRING_ESCAPES
 
-            .segment  "STARTUP"
+            .segment        "STARTUP"
             .segment        "CODE"
             .proc           _main: near
-
+;
+; These are needed by the syn600 code
 .export     XM_RomStart
 .export     clrScreen
 
+;
+; If we are building this "stand-alone" then set this as a -D flag when invoking the assembler
+; See the ./build script for details
 .ifdef      _StandAlone_
             .org  $7000                             ; Start of program (adjust to your needs)
 .endif            
 
+
 ;
 ; Variables, Some live in Display RAM to save space (EG The CRC Table)
 ;
-SR_Flag         =       $D093
+SR_Flag         =       $D093           ; Flag to keep track of what we are doing     TODO: Is this still needed?
 lastblk         =       $D094           ; flag for last block
 blkno           =       $D095           ; block number
 errcnt          =       $D096           ; error counter 10 is the limit
@@ -99,7 +99,7 @@ retryh          =       $D091
 
 
 ;
-; Syn600 ROM std variables
+; Syn600 ROM std variables. 
 zp_bas_tmpStr_1 =       $0065
 zp_bas_tmpStr_2 =       $0068
 zp_bas_tmpStr_3 =       $006B
@@ -116,6 +116,8 @@ zp_monLoadAddrHi=       $00FF
 displayRAM      =       $D000
 ;
 
+;
+; Working pointers in the Zero Page
 ptr             =       zp_bas_tmpStr_2
 ptrh            =       zp_bas_tmpStr_2+1
 move_ptr        =       zp_bas_tmpStr_3
@@ -130,19 +132,18 @@ pollKBD         =       $FD00
 hex2bin         =       $FE93           ; hex2bin - Convert ascii hex to binary
 rollAD          =       $FEDA           ; Roll hex digits into 2 bytes of memory target $FC, FD
 fetchByte       =       $FEE9           ; Check Fetch flag; Read from TAPE else KEYB
-
+;
 aciaInit        =       $FCA6           ; syn600 ROM Serial Acia Init Routine
 aciaPut         =       $FCB1           ; syn600 ROM Serial Acia Send byte (A-Reg) Routine
 aciaGetW        =       $FE80           ; syn600 ROM Serial Acia Recv Waits for data
-
+;
 monStart        =       $FE00
 disp4bytes      =       $FEAC           ; Display 4 bytes in $FF, FE, FD & FC
 dispNybble      =       $FECA           ; Display Nybble - A-Reg Set Y-Reg to zero on entry (Its used as an index)
-
 ;
 ; The ACIA adapter chip
-aciaStatus      =       $F000          ; The 6850
-aciaData        =       $F001          ; The 6850
+aciaStatus      =       $F000           ; The 6850
+aciaData        =       $F001           ; The 6850
 
 ;
 ;
@@ -185,8 +186,7 @@ ESC     = $1b  ; ESC to exit
 ; v 1.0 recode for use with SBC2
 ; v 1.1 added block 1 masking (block 257 would be corrupted)
 ;
-
-
+;
 ;
 ;
 XM_RomStart:
