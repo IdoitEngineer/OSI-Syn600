@@ -317,7 +317,7 @@ DoVID
 
 romfile
 '         File "SYN600.ROM"       ' This file holds the boot monitor program
-         File "jhe600.bin"
+         File "syn600.bin"
 basicrom
          File "OSIBASIC.ROM"      ' This file holds the entire 8K BASIC
 CON

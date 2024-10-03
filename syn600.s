@@ -37,6 +37,6 @@
 ;
 ;
 ;
-.include        "./jhe-c1p.s"               ; The old syn600 code + my changes
+.include        "./syn600-FC00.s"               ; The old syn600 code + my changes
 ;
 ;

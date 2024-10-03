@@ -14,5 +14,5 @@ ld65 -C osic1p.cfg  -v -vm -m ${fileName}.map -o ${fileName} ${fileName}.o osic1
 srec_cat ${fileName} -binary -offset ${loadAddress} -o ${fileName}.c1p -Ohio_Scientific -execution-start-address=${loadAddress}
 
 #
-cl65 -g -Ln jhe600.lbl ${CA65_INC} -C ./osic1p-asm.cfg --verbose --start-addr 0xf800 -t none --add-source -l jhe600.lst  jhe600.s -o jhe600.bin
-cp jhe600.bin ./SB-3-Propeller/.
+cl65 -g -Ln syn600.lbl ${CA65_INC} -C ./osic1p-asm.cfg --verbose --start-addr 0xf800 -t none --add-source -l syn600.lst  syn600.s -o syn600.bin
+cp syn600.bin ./SB-3-Propeller/.
