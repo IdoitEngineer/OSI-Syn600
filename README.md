@@ -2,9 +2,9 @@
 
 ## OSI Super board 3 new kernel rom image
 
-What I've done here is to put an X-Modem implementation into the lower 1k of the normal syn600 Kernel image
-It turns out the Super-Board machines never used this lower 1k for anything
-So I grabbed the X-Modem source code courtesy of Daryl Rictor & Ross Archer Cira Aug 2002
+What I've done here is to put an X-Modem implementation into the lower 1k of the normal syn600 Kernel image.
+It turns out the Super-Board machines never used this lower 1k for anything.
+So I grabbed the X-Modem source code courtesy of Daryl Rictor & Ross Archer Cira Aug 2002.
 
 ---
 
@@ -13,8 +13,9 @@ The New ROM image now has an added **X** option that takes you to the X-Modem ad
 From there you can send, receive or save a basic program (Which just dumps everything from hex 0000 to the end of the basic programs as 
 defined by the BASIC zero page pointers
 
-The X-Modem code assumes the file is in the o64 format, which is the c64 way of storing a binary
-That is the very first two bytes is both the load address and the start address
+The X-Modem code assumes the file is in the o64 format, which is the c64 way of storing a binary.
+
+That is the very first two bytes is both the load address and the start address.
 
 ## New D/C/W/M prompt
 
@@ -29,14 +30,15 @@ S/R/B
 When saving to a file, select the **S** option. The machine will then prompt you for the START address
 type that in as you normally would in the monitor but hit **\<enter\>** to complete
 The next entry is the END address once again type that in and hit **\<enter\>**
-the send option will then wait for the terminal program to start up
+the send option will then wait for the terminal program to start up.
 
-One thing to note: if you are using Tera-Term, you will need to make sure the CRC is selected... 
-You can find the option at the bottom of the x-modem receive page
+One thing to note: if you are using Tera-Term, you will need to make sure the CRC option is selected... 
+You can find the option at the bottom of the x-modem receive page.
 
 ### Recieve
 
 Hit **R** to receive a file 
+
 The loader has some special logic so that when it sees an incoming start/load address of $0000 then it assumes a 
 BASIC program is being loaded and will jump to the basic warm start location.
 
@@ -51,14 +53,16 @@ other wise it will jump to the load address when the upload is finished
 ### Basic
 
 The next option is **B** for BASIC... It won't ask you anything as it starts at address $0000 and grabs 
-the end of the basic program from BASICs data pointers in the zero page
+the end of the basic program from BASICs data pointers in the zero page.
 
 ## Notes
 
 This project rquires the CC65 compiler you can grab it here https://github.com/cc65/cc65.git
 
 > **git clone https://github.com/cc65/cc65.git** </br>
+>
 > Then add the following to your **.profile** or **.bashrc** file </br>
+>
 > **CC65_HOME=/home/\<your user name\>/path/to/cc65** </br>
 
 source the new value </br>
@@ -72,12 +76,16 @@ But you can "poke" a new multiplier into the UART at \$F000, the divide by one H
 From the **Monitor**
 
 > **.**               <--- to get to ADDR mode </br>
+>
 > **F000**        <--- Address of the UART </br>
+>
 > **/**               <--- Switch to DATA mode </br>
+>
 > **10**            <--- The new divisor value for the UART </br>
+>
 > .               <--- Back to ADDR mode </br>
 
-The **old** section of the syn600 ROM was disasembled via da65 and annotated by me.
+The **old** section of the syn600 ROM was disassembled via da65 and annotated by me.
 This process was to re-assemble and check the resulting binary for any differences.
 I made a **few** changes here and there, but most of the entry points should be the same
 
@@ -99,13 +107,16 @@ The **new** ROM code uses a ZP address as a vector, the default is an IRQ/NMI st
 > 
 > NMI = \$F9,\$FA</br>
 
-These changes shouldn't break anything, as far as I know the C1P doesn't use any interrupts, I'm pretty sure the Disk based OS doesn't either.  There was a time board that did, so any code would need to be modified or just stuff the old values into the \$F7,\$F8 and \$F9,\$FA pairs, the new ROM code should then do the right thing.
+These changes shouldn't break anything, as far as I know the C1P doesn't use any interrupts, I'm pretty sure the Disk based OS doesn't either.  
+There was (I think) a timer board that did, so any code would need to be modified or just stuff the old values into 
+the \$F7,\$F8 and \$F9,\$FA pairs, the new ROM code should then do the right thing.
 
 ## Screen
 
-I've also taken the liberty of changing the default screen resolution to 32x32; As I was finding it a pain to always switch it
-The old hold **\<break\>** key down on power up will give you the old 24x24 screen again
-also in the repo there is a stand-alone X-Modem c1p file which currently loads at hex 7000, so if you want to use that you will need a 32k machine
+I've also taken the liberty of changing the default screen resolution to 32x32; As I was finding it a pain to always switch it. 
+The old hold the **\<break\>** key down on power up will give you the old 24x24 screen again. 
+also in the repo there is a stand-alone X-Modem c1p file which currently loads at hex 7000, so if you want to use that you will 
+need a 32k machine.
 
 You can however easily rebuild the C1P file by modifying the build script from in the same directory and specify your own load address
 The same build bash script will also generate the new ROM image for you
