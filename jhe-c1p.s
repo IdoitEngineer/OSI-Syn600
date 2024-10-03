@@ -167,6 +167,17 @@ initIrqNmi:
         sta     zp_irq_vec+1
         sta     zp_nmi_vec+1
 ;
+; NMI
+;        lda     #<(stack+$30)
+;        sta     zp_nmi_vec
+;        lda     #>(stack+$31)
+;        sta     zp_nmi_vec+1
+; IRQ
+;        lda     #<(stack+$C0)
+;        sta     zp_irq_vec
+;        lda     #>(stack+$C1)
+;        sta     zp_irq_vec+1
+;        
         rts
 ;
         .res    $FD00-*, $FF
@@ -532,7 +543,7 @@ jumpTable:
 ; ----------------------------------------------------------------------------
 ; Cold start - Called on CPU reset
 coldStart:
-        ldx     #$28                          ; Start of Stack = $28
+        ldx     #$28                          ; Start of Stack = $28           ; FF00
         txs                                   ; Xfer into SP
 ;
         jsr     initIrqNmi                    ; Prep IRQ/NMI handling & finish CPU setup
@@ -544,9 +555,9 @@ coldStart:
         nop
         nop
         
-;                                                                              ; FF04 A0 0A        ..
+;                                                                              ; THESE ARE WRONG NOW!!!
 ; Cold start - Copy jump table to wrkArea
-coldStart_copyJumpTable:                                                       ; THESE ARE WRONG NOW!!!
+coldStart_copyJumpTable:                                                       ;
         lda     oneBefore_jumpTable,y                                          ; FF06 B9 EF FE     ...
         sta     wa_unused2,y                                                   ; FF09 99 17 02     ...
         dey                                                                    ; FF0C 88           .
