@@ -88,15 +88,15 @@ I made a **few** changes here and there, but most of the entry points should be 
 
 The IRQ handler has changed. The **old** ROM code would jump to 
 
-> NMI = stack+\$30
+> NMI = stack+\$30</br>
 > 
-> IRQ = stack+\$C0
+> IRQ = stack+\$C0</br>
 
 The **new** ROM code uses a ZP address as a vector, the default is an IRQ/NMI stub that just does an **rti**
 
-> IRQ = \$F7,\$F8
+> IRQ = \$F7,\$F8</br>
 > 
-> NMI = \$F9,\$FA
+> NMI = \$F9,\$FA</br>
 
 These changes shouldn't break anything, as far as I know the C1P doesn't use any interrupts, I'm pretty sure the Disk based OS doesn't either.  There was a time board that did, so any code would need to be modified or just stuff the old values into the \$F7,\$F8 and \$F9,\$FA pairs, the new ROM code should then do the right thing.
 
