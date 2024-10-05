@@ -106,8 +106,8 @@ dskExitRtn:
 aciaInit:
         lda     #$03                    ; b0000 0011 - Master Reset            ; FCA6 A9 03        ..
         sta     aciaStatus                                                     ; FCA8 8D 00 F0     ...
-;       lda     #$11                    ; b0001 0001 - !RTS,!IRQ,8n2,Div-16    ; FCAB A9 11        ..
-        lda     #$10                    ; b0001 0001 - !RTS,!IRQ,8n2,Div-1     ; FCAB A9 11        ..
+        lda     #$11                    ; b0001 0001 - !RTS,!IRQ,8n2,Div-16    ; FCAB A9 11        ..
+;        lda     #$10                    ; b0001 0001 - !RTS,!IRQ,8n2,Div-1     ; FCAB A9 11        ..
         sta     aciaStatus                                                     ; FCAD 8D 00 F0     ...
         rts                                                                    ; FCB0 60           `
 
