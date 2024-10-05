@@ -107,6 +107,9 @@ basicROM_OutVar                   :=  $AFC1
 basicROM_Print_Num                :=  $B962
 basicROM_coldStart                :=  $BD11
 basicROM_crtRtn                   :=  $BF2D
+;
+;
+;
 floppy_piaDRA                     :=  $C000                                                       ; The floppy PIA Data-A port (Input)
 floppy_piaCRA                     :=  $C001                                                       ; The floppy PIA Control-A port
 floppy_piaDRB                     :=  $C002                                                       ; The floppy PIA Data-B port (Output)
@@ -117,3 +120,121 @@ displayRAM                        :=  $D000
 kbdPort                           :=  $DF00                                                       ; The keyboad port lives here
 aciaStatus                        :=  $F000                                                       ; The TAPE ACIA Status port
 aciaData                          :=  $F001                                                       ; The TAPE ACIA Data port
+;
+;
+;
+;
+;
+;
+; The *NEW* X-Modem routines
+syn600_XM_RomStart                     := $F800         ; X - option lands here
+syn600_XM_Recv                         := $F820         ; Recv routine
+syn600_XM_UpdateDisplay                := $F957         ; Display the Address held in zp_monLoadAddrLo:zp_monLoadAddrHi
+syn600_XM_BasicSave                    := $F963         ; Save the BASIC program in memory
+syn600_XM_clrScreen                    := $F986         ; A callable screen clear!
+syn600_XM_Send                         := $F9A0         ; Save memory rand (It will prompt for the range)
+syn600_XM_Init                         := $FAC5         ; Sets up everything the X-Modem code needs
+syn600_XM_Flush                        := $FB0E         ; Flush the ACIA traffic (There maybe bytes inbound)
+syn600_XM_aciaGet                      := $FB54         ; ACIA read char in A-reg bcc set if no char
+syn600_XM_MakeCRCTable                 := $FB7F         ; Build the CRC table in video RAM
+;
+;
+; The *OLD* Kernel routines with a few mods
+; Most of the entry points should be the same
+;
+; Disk stuff
+syn600_dsk_Boot                        := $FC00         ;
+syn600_dsk_SeekTrk_0                   := $FC2A         ;
+syn600_dsk_SeekTrk                     := $FC33         ;
+syn600_dsk_SetDrive                    := $FC4D         ;
+syn600_dsk_WaitIndex                   := $FC55         ;
+syn600_dsk_WaitReady                   := $FC5A         ;
+syn600_dsk_ReadSector                  := $FC7B         ;
+syn600_dsk_Delay                       := $FC91         ;
+syn600_dsk_DelayLoopEOR                := $FC93         ;
+syn600_dsk_WaitData                    := $FC9C         ;
+syn600_dsk_ExitRtn                     := $FCA5         ;
+;
+;
+;
+syn600_aciaInit                        := $FCA6         ; syn600 ROM Serial Acia Init Routine
+syn600_aciaPut                         := $FCB1         ; syn600 ROM Serial Acia Send byte (A-Reg) Routine
+;
+;
+;
+syn600_irqJump                         := $FCD5         ; NEW - CPU IRQ lands here
+syn600_nmiJump                         := $FCD8         ; NEW - CPU NMI land here
+syn600_intrStub                        := $FCDB         ; NEW - The IRQ/NMI stub, just does an rti
+syn600_initIrqNmi                      := $FCDC         ; NEW - Init the IRQ/NMI ZP vectors
+;
+;
+;
+syn600_pollKBD                         := $FD00         ; Keyboard poll routine - Result in A-reg
+;
+; Table of tables of valid keys brom keyboard
+syn600_tbl_validKeysR0                 := $FDCF
+syn600_tbl_validKeysR1                 := $FDD6
+syn600_tbl_validKeysR2                 := $FDDD
+syn600_tbl_validKeysR3                 := $FDE4
+syn600_tbl_validKeysR4                 := $FDEB
+syn600_tbl_validKeysR5                 := $FDF2
+syn600_tbl_validKeysR6                 := $FDF9
+;
+;
+;
+syn600_mon_Start                       := $FE00
+; Internal Monitor routines
+syn600_mon_init                        := $FE0B         ; Monitor - Start up
+syn600_mon_DspAddr                     := $FE43         ; Monitor - Display Address
+syn600_mon_GoAddr                      := $FE4C         ; Monitor - Execute at Address store at zPage ($FE+$FF)
+;
+syn600_aciaGet_Wait                    := $FE80         ; Check to see if we have a char from the ACIA wait for char
+syn600_aciaGet                         := $FE88         ; Check to see if we have a char from the ACIA (bcc set if not)
+syn600_hex2bin                         := $FE93         ; hex2bin - Convert ascii hex to binary
+;
+syn600_disp4bytes                      := $FEAC         ; Display 4 bytes in $FF, FE, FD & FC
+syn600_dispNybble                      := $FECA         ; Display Nybble - A-Reg Set Y-Reg to zero on entry (Its used as an index)
+;
+syn600_rollAD                          := $FEDA         ; Roll hex digits into 2 bytes of memory target $FC, FD
+;
+syn600_fetchByte                       := $FEE9         ; Check Fetch flag; Read from TAPE else KEYB
+;
+; Table of Vectors you should be able to
+; jmp/jsr   (syn600_vec_blah)
+syn600_vec_inputChar                   := $FEF0
+syn600_vec_outChar                     := $FEF2
+syn600_vec_ctrlC                       := $FEF4
+syn600_vec_setLoadFlag                 := $FEF6
+syn600_vec_setSaveFlag                 := $FEF8
+syn600_vec_NMI                         := $FEFA
+syn600_vec_RST                         := $FEFC
+syn600_vec_IRQ                         := $FEFE
+;
+;
+;
+syn600_coldStart                       := $FF00         ; This is where we end up on a cold start
+;
+;
+;
+syn600_dcwmPrompt                      := $FF5F
+syn600_outChar                         := $FF69         ; Output char to screen and/or TAPE(ACIA)
+syn600_setLoadFlag                     := $FF8B         ; Set LOAD flag, reset SAVE flag
+syn600_setSaveFlag                     := $FF96         ; Set SAVE flag
+syn600_ctrlC                           := $FF9B         ; Control-C Check - CTRL-C disable flag in wrkArea+12
+;
+syn600_inputChar                       := $FFBA         ; Input char from KBD and/or TAPE(ACIA)
+syn600_inputChar_ACIA                  := $FFBF         ; Input char from UART(ACIA)
+syn600_inputChar_kbd                   := $FFD8         ; Input char from KBD
+;
+syn600_inputRtn                        := $FFEB         ; Input Routine
+syn600_outputRtn                       := $FFEE         ; Output Routine
+syn600_crtl_CRtn                       := $FFF1         ; Ctrl-C Routine
+syn600_loadRtn                         := $FFF4         ; Load Routine
+syn600_saveRtn                         := $FFF7         ; Save Routine
+;
+;
+;
+syn600_CPU_nmi                         := $FFFA
+syn600_CPU_res                         := $FFFC
+syn600_CPU_irq                         := $FFFE
+
