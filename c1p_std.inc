@@ -52,10 +52,17 @@ zp_bas_getC_Addr_H                :=  $00C4
 zp_bas_getC_Exit                  :=  $00D3
 zp_bas_randSeed1                  :=  $00D4
 zp_bas_randSeed2                  :=  $00D6
-zp_freeRAM                        :=  $00D8     ; cc65 Use?     (30 free bytes?)
+;---------
+;zp_freeRAM                       :=  $00D8     ; cc65 Use?     (30 free bytes?)
 ;
-zp_irq_vec                        :=  $00F7     ; IRQ Vector    (2 Bytes )
-zp_nmi_vec                        :=  $00F9     ; NMI Vector    (2 Bytes )
+;zp_irq_vec                       :=  $00F7     ; IRQ Vector    (2 Bytes )
+;zp_nmi_vec                       :=  $00F9     ; NMI Vector    (2 Bytes )
+;---------
+zp_irq_vec                        :=  $00D8     ; IRQ Vector    (2 Bytes )
+zp_nmi_vec                        :=  $00D9     ; NMI Vector    (2 Bytes )
+;
+zp_freeRAM                        :=  $00E0     ; cc65 Use?     (30 free bytes?)
+;---------
 ;
 zp_monLoadFlag                    :=  $00FB
 zp_monLoadByte                    :=  $00FC

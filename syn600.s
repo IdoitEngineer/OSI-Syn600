@@ -9,7 +9,7 @@
 ;   M)onitor                            --- Existing Monitor
 ;       L) Load                         --- Load from serial port
 ;       .) Set ADDR mode  0000 -> FFFF
-;       /) Set ADDR mode  00 ---> FF  
+;       /) Set ADDR mode  00 ---> FF
 ;          <Return> to skip to next ADDR
 ;       G) Start execution at ADDR
 ;   X)modem
@@ -26,7 +26,8 @@
         .segment "CODE"
         .org     $F800
 ;
-;
+; Set to 1 to get **OLD** IRQ/NMI behaviour
+.define         _OLD_IRQ_BEHAVIOUR_         1
 ;
 ; ---------------------------------------------------------------------------
 .include        "./c1p_std.inc"             ; Standard defines

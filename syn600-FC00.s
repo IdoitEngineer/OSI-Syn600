@@ -106,7 +106,8 @@ dskExitRtn:
 aciaInit:
         lda     #$03                    ; b0000 0011 - Master Reset            ; FCA6 A9 03        ..
         sta     aciaStatus                                                     ; FCA8 8D 00 F0     ...
-        lda     #$11                    ; b0001 0001 - !RTS,!IRQ,8n2,Div-16    ; FCAB A9 11        ..
+;       lda     #$11                    ; b0001 0001 - !RTS,!IRQ,8n2,Div-16    ; FCAB A9 11        ..
+        lda     #$10                    ; b0001 0001 - !RTS,!IRQ,8n2,Div-1     ; FCAB A9 11        ..
         sta     aciaStatus                                                     ; FCAD 8D 00 F0     ...
         rts                                                                    ; FCB0 60           `
 
@@ -160,24 +161,26 @@ intrStub:
         rti
 ;
 initIrqNmi:
+.if     _OLD_IRQ_BEHAVIOUR_ > 0
+; NMI
+        lda     #<(stack+$30)
+        sta     zp_nmi_vec
+        lda     #>(stack+$31)
+        sta     zp_nmi_vec+1
+; IRQ
+        lda     #<(stack+$C0)
+        sta     zp_irq_vec
+        lda     #>(stack+$C1)
+        sta     zp_irq_vec+1
+.else
         lda     #<intrStub
         sta     zp_irq_vec
         sta     zp_nmi_vec
         lda     #>intrStub
         sta     zp_irq_vec+1
         sta     zp_nmi_vec+1
+.endif
 ;
-; NMI
-;        lda     #<(stack+$30)
-;        sta     zp_nmi_vec
-;        lda     #>(stack+$31)
-;        sta     zp_nmi_vec+1
-; IRQ
-;        lda     #<(stack+$C0)
-;        sta     zp_irq_vec
-;        lda     #>(stack+$C1)
-;        sta     zp_irq_vec+1
-;        
         rts
 ;
         .res    $FD00-*, $FF
@@ -554,7 +557,7 @@ coldStart:
         nop
         nop
         nop
-        
+
 ;                                                                              ; THESE ARE WRONG NOW!!!
 ; Cold start - Copy jump table to wrkArea
 coldStart_copyJumpTable:                                                       ;
