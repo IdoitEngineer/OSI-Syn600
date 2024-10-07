@@ -56,15 +56,8 @@ You can find the option at the bottom of the x-modem receive page.
 Hit **R** to receive a file 
 
 The loader has some special logic so that when it sees an incoming start/load address of $0000 then it assumes a 
-BASIC program is being loaded and will jump to the basic warm start location.
-
-> Note:  I've had issues with the BASIC interpreter having a bit of a hissy fit with the newly loaded program
-> 
-> >       Run the following after the OK prompt  
-> >       PRINT FRE(1)
-> >       It will barf the first time, but run OK the second; BASIC programs usually work fine after that
-
-other wise it will jump to the load address when the upload is finished
+BASIC program is being loaded and will jump to the BASIC warm start location,
+other wise it will jump to the load address when the upload is finished.
 
 ### Basic
 
