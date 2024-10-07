@@ -90,20 +90,6 @@ source the new value </br>
 This repo has a copy of the Propeller IDE and spin code as developed by Vince Briel
 This is so the update can easily be applied to the SuperBoard-3 machines. 
 
-This new ROM should work in an original SuperBoard-2. The baud rates are clocked on those machines to be set at 300 Baud
-But you can "poke" a new multiplier into the UART at \$F000, the divide by one Hex is \$10 which should give you 4800 baud (I think)
-From the **Monitor**
-
-> **.**               <--- to get to ADDR mode </br>
-> 
-> **F000**        <--- Address of the UART </br>
-> 
-> **/**               <--- Switch to DATA mode </br>
-> 
-> **10**            <--- The new divisor value for the UART </br>
-> 
-> .               <--- Back to ADDR mode </br>
-
 The **old** section of the syn600 ROM was disassembled via da65 and annotated by me.
 This process was to re-assemble and check the resulting binary for any differences.
 I made a **few** changes here and there, but most of the entry points should be the same
