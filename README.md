@@ -112,6 +112,8 @@ IRQ/NMI Zero Page Vectors
 
 ## Screen
 
+Briel SuperBoard-3 Only
+
 I've also taken the liberty of changing the default screen resolution to 32x32; As I was finding it a pain to always switch it. 
 The old hold the **\<break\>** key down on power up will give you the old 24x24 screen again. 
 
