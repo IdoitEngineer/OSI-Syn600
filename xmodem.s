@@ -63,6 +63,8 @@
             .segment        "CODE"
             .proc           _main: near
 ;
+            .include        "c1p_std.inc"
+;
 ; These are needed by the syn600 code
 .export     XM_RomStart
 .export     clrScreen
@@ -72,7 +74,7 @@
 ; See the ./build script for details
 .ifdef      _StandAlone_
             .org  $7000                             ; Start of program (adjust to your needs)
-.endif            
+.endif
 
 
 ;
@@ -99,21 +101,6 @@ retryh          =       $D091
 
 
 ;
-; Syn600 ROM std variables. 
-zp_bas_tmpStr_1 =       $0065
-zp_bas_tmpStr_2 =       $0068
-zp_bas_tmpStr_3 =       $006B
-zp_bas_tmpStr_4 =       $006E
-zp_bas_snglVars =       $007B
-zp_bas_arryVars =       $007D
-zp_bas_emptyRAM =       $007F
-zp_bas_memTop   =       $0085
-zp_monLoadFlag  =       $00FB
-zp_monLoadByte  =       $00FC
-zp_monLoadAddrLo=       $00FE
-zp_monLoadAddrHi=       $00FF
-;
-displayRAM      =       $D000
 ;
 
 ;
@@ -141,10 +128,6 @@ monStart        =       $FE00
 disp4bytes      =       $FEAC           ; Display 4 bytes in $FF, FE, FD & FC
 dispNybble      =       $FECA           ; Display Nybble - A-Reg Set Y-Reg to zero on entry (Its used as an index)
 ;
-; The ACIA adapter chip
-aciaStatus      =       $F000           ; The 6850
-aciaData        =       $F001           ; The 6850
-
 ;
 ;
 Rbuff           =       $D100           ; temp 132DB receive buffer (In video memory)
@@ -199,18 +182,18 @@ GetOpt:
             cmp     #'S'
             beq     @DoXModemSend
 ;
-@CheckRecv:            
+@CheckRecv:
             cmp     #'R'
             beq     XModemRecv
 ;
-@CheckBasSave:            
+@CheckBasSave:
             cmp     #'B'
             beq     @DoXMBasicSave
             bne     GetOpt
 ;
-@DoXModemSend:            
+@DoXModemSend:
             jmp     XModemSend
-@DoXMBasicSave:            
+@DoXMBasicSave:
             jmp     XMBasicSave
 XModemRecv:
 
@@ -384,10 +367,10 @@ IncBlk:
 XM_Done:
             lda     #ACK                            ; last block, send ACK and exit.
             jsr     aciaPut                         ;
-XM_Exit:            
+XM_Exit:
             cld                                                                    ; FF00 D8           .
             ldx     #$28                                                           ; FF01 A2 28        .(
-            txs   
+            txs
 ;
             jsr     Flush                           ; get leftover characters, if any
             jsr     PrintGood                       ;
@@ -401,16 +384,18 @@ XM_Exit:
 MON_Start:
             cmp     #'R'
             beq     PGM_Start
-;            
+;
             jmp     monStart
-;          
+;
 PGM_Start:
             jmp     (zp_monLoadAddrLo)
-;            
-BAS_Start:
-            jmp     $A274
 ;
-halt:       jmp     halt            
+BAS_Start:
+            lda     #$00                            ; The BASIC code checks the ZERO flag in the CLEAR routine
+            jsr     $A47A                           ; Call the BASIC CLEAR routine to fixup variables etc
+            jmp     $A274                           ; Non-destructive warm start
+;
+halt:       jmp     halt
 ;
 ;
 UpdateDisplay:
@@ -443,17 +428,17 @@ XMBasicSave:
             lda     #<BAS_SaveAddr
             sta     ptr
             sta     zp_monLoadAddrLo
-            
+
             lda     #>BAS_SaveAddr
             sta     ptrh
             sta     zp_monLoadAddrHi
-;            
-;           Basic End Addr            
+;
+;           Basic End Addr
             lda     zp_bas_emptyRAM
             sta     eofp
             lda     zp_bas_emptyRAM+1
             sta     eofph
-            
+
             jsr     UpdateDisplay
             jmp     XMSendStart
 ;
@@ -461,7 +446,7 @@ XMBasicSave:
 clrScreen:
         pha
         tya
-        pha 
+        pha
         lda     #$20
         ldy     #$00
 ;
@@ -473,7 +458,7 @@ clrScreen:
         iny
         bne     @Loop
 ;
-        pla 
+        pla
         tay
         pla
         rts
@@ -519,7 +504,7 @@ GetEndAddr:
             sta     eofph
 ;
 ;            jsr     DispAddr
-XMSendStart:       
+XMSendStart:
             jsr     PrintMsg                                 ; send prompt and info
 ;
             lda     #$00                                     ;
@@ -570,9 +555,9 @@ LdBuffer:
 ;
             lda     lastblk                                  ; Was the last block sent?
             beq     LdBuff0                                  ; no, send the next one
-            
+
             jmp     XM_Done
-;            
+;
 LdBuff0:
             ldx     #$02                                     ; init pointers
             ldy     #$00                                     ;
@@ -671,7 +656,7 @@ XModemInit:
 ;
             lda     #$00
             sta     zp_monLoadFlag
-;           
+;
             jsr     aciaInit
             jsr     Flush
             jsr     disp4bytes
@@ -780,7 +765,7 @@ DispEnd:
             jsr     screenOut
             rts
 ;
-.IF 0  
+.IF 0
 DispSend:
 @offset = ( strXM_Send - stringTable )&$FF      ; Get the string location in the Table
             ldx     #@offset                    ; Save it for screenOut
@@ -795,7 +780,7 @@ DispRecv:
             lda     #$85
             jsr     screenOut
             rts
-.ENDIF          
+.ENDIF
 ;
 DispPrompt:
 @offset = ( strPrompt - stringTable )&$FF
@@ -913,5 +898,17 @@ strEnd:         .asciiz     "End  "
 
 ;
 ; End of string table
-.align 256
+.ifdef      _StandAlone_
+    .align      256
+.else
+    .res        ($FC00-8)-*, $FF
+;
+    syn600_clrScrn_vc:  .Addr       clrScreen
+    XM_Recv_vc:         .Addr       syn600_XM_Recv
+    XM_Send_vc:         .Addr       syn600_XM_Send
+    XM_Basic_vc:        .Addr       syn600_XM_BasicSave
+;
+.endif
+;
+;
 .endproc

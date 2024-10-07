@@ -2,7 +2,7 @@
 set -x
 
 CC_DIR="${CC65_HOME}"
-CA65_INC=" -I ${CC_DIR}/libsrc/osic1p "
+CA65_INC=" -I ${CC_DIR}/asminc/ "
 
 #
 loadAddress="0x7000"                ### Change this to load the C1P file at another address!!!
