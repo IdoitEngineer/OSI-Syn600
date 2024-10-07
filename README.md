@@ -1,6 +1,6 @@
 # OSI-Syn600
 
-## OSI Super board 3 new kernel rom image
+## OSI Super-board 2/C1P and SB-3 new kernel rom image
 
 What I've done here is to put an X-Modem implementation into the lower 1k of the normal syn600 Kernel image.
 It turns out the Super-Board machines never used this lower 1k for anything.
