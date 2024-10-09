@@ -70,14 +70,6 @@
 .export     clrScreen
 
 ;
-; If we are building this "stand-alone" then set this as a -D flag when invoking the assembler
-; See the ./build script for details
-.ifdef      _StandAlone_
-            .org  $7000                             ; Start of program (adjust to your needs)
-.endif
-
-
-;
 ; Variables, Some live in Display RAM to save space (EG The CRC Table)
 ;
 SR_Flag         =       $D093           ; Flag to keep track of what we are doing     TODO: Is this still needed?

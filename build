@@ -4,20 +4,30 @@ set -x
 CC_DIR="${CC65_HOME}"
 CA65_INC=" -I ${CC_DIR}/asminc/ "
 
-#
+###
 loadAddress="0x7000"                ### Change this to load the C1P file at another address!!!
-
+###
 fileName="xmodem"
+###
 CCOPTS=" -g -T --listing ${fileName}.lst  -Wl -Ln ${fileName}.lbl -m ${fileName}.map -v -vm --add-source -C ${HOME}/Software/cc65/cfg/osic1p-prg.cfg "
-#
-ca65 -D _StandAlone_ -I . ${CA65_INC} -s -l ${fileName}.lst -o ${fileName}.o -s -t osic1p ${fileName}.s
-ld65 -C osic1p.cfg  --dbgfile ${fileName}.dbg -v -vm -m ${fileName}.map -o ${fileName}.bin ${fileName}.o osic1p.lib
-srec_cat ${fileName}.bin -binary -offset ${loadAddress} -o ${fileName}.c1p -Ohio_Scientific -execution-start-address=${loadAddress}
+###
 
+
+#
+#
+# Build the STAND-ALONE X-Modem utility
+ca65 -D _StandAlone_ -I . ${CA65_INC} -s -l ${fileName}.lst -o ${fileName}.o -s -t osic1p ${fileName}.s
+ld65 -C osic1p.cfg   --start-addr ${loadAddress} --dbgfile ${fileName}.dbg -v -vm -m ${fileName}.map -o ${fileName}.bin ${fileName}.o osic1p.lib -u __BOOT__
+mv ${fileName}.bin ${fileName}.c1p
+
+
+#
+#
+# Rebuild the syn600 ROM
 fileName="syn600"
 CCOPTS=" -T --listing ${fileName}.lst  -Wl -Ln ${fileName}.lbl -m ${fileName}.map -v -vm --add-source -C ${HOME}/Software/cc65/cfg/osic1p-prg.cfg "
 ca65 -I . ${CA65_INC} -s -l ${fileName}.lst -o ${fileName}.o -s -t osic1p ${fileName}.s
 ld65 -C osic1p.cfg  --dbgfile ${fileName}.dbg -v -vm -m ${fileName}.map -o ${fileName}.bin ${fileName}.o osic1p.lib
 
-
+# Copy the binary file to the Propeller directory. Propeller doesn't seem to be able to do relative paths :(
 cp syn600.bin ./SB-3-Propeller/.
